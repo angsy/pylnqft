@@ -1,5 +1,5 @@
 # Standard Library Imports
-from typing import Any, Callable, Tuple,Type
+from typing import Any, Callable, Tuple, Type, Union
 import os
 import socket
 import time
@@ -65,7 +65,7 @@ def error_logger(obj: Callable[[Any], Any]) -> Type[object]:
 
 @error_logger
 def main() -> None:
-    (file_name, file_data) = file_handler()
+    (file_name, file_data, binary_data) = file_handler()
     address = socket_address()
     link = f"{address[0]}:{address[1]}/{file_name}"
     print(f"\nFile will be temporarily hosted at...")
@@ -77,19 +77,29 @@ def main() -> None:
     server_socket.listen()
     while True:
         client_socket, client_address = server_socket.accept()
-        connection_handler(client_socket, file_name, file_data)
+        connection_handler(client_socket, file_name, file_data, binary_data)
 
-def file_handler() -> Tuple[str, str]:
+def file_handler() -> Tuple[str, Union[str, bytes], bool]:
+
     while True:
         _file_path = input(f"Full path to the file to be transferred...\n")
         if os.path.isfile(f"{_file_path}") is True:
             break
         else:
             print_br_red(f"File path specified invalid. Please try again.")
+
     _file_name = os.path.basename(f"{_file_path}")
-    with open(file = f"{_file_path}", mode = "r") as file_io:
-        _file_data = file_io.read()
-    return (_file_name, _file_data)
+
+    try:
+        with open(file = f"{_file_path}", encoding = "utf-8", mode = "r") as file_io:
+            _file_data = file_io.read()
+            _binary_data = False
+    except UnicodeDecodeError:
+        with open(file = f"{_file_path}", mode = "rb") as file_io:
+            _file_data = file_io.read()
+            _binary_data = True
+
+    return (_file_name, _file_data, _binary_data)
 
 def socket_address() -> Tuple[str, int]:
     while True:
@@ -122,15 +132,18 @@ def socket_address() -> Tuple[str, int]:
             print_br_red(f"Error in handling the specified port number. Please try again.")
     return (f"{ipv4_octets[0]}.{ipv4_octets[1]}.{ipv4_octets[2]}.{ipv4_octets[3]}", port_number)
 
-def connection_handler(client_socket: socket.socket, file_name: str, file_data: str) -> None:
+def connection_handler(client_socket: socket.socket, file_name: str, file_data: Union[str, bytes], binary_data: bool) -> None:
     expected_request_uri = f"/{file_name}"
     receiving_buffer = client_socket.recv(1024)
     request = receiving_buffer.decode("utf-8")
     request = request.split(f"\r\n")
     request_line = request[0].split(" ")
-    if request_line[0] == "GET" and request_line[1] == expected_request_uri:
+    if request_line[0] == "GET" and request_line[1] == expected_request_uri and binary_data == False:
         outgoing_data = f"{request_line[2]} 200 OK\r\nContent-Disposition: attachment; filename={file_name}\r\nContent-Length: {len(file_data)}\r\n\r\n{file_data}"
         client_socket.sendall(outgoing_data.encode("utf-8"))
+    if request_line[0] == "GET" and request_line[1] == expected_request_uri and binary_data == True:
+        outgoing_data = f"{request_line[2]} 200 OK\r\nContent-Disposition: attachment; filename={file_name}\r\nContent-Length: {len(file_data)}\r\n\r\n".encode("utf-8") + file_data
+        client_socket.sendall(outgoing_data)
 
 if __name__ == "__main__":
     if sys.platform.startswith(f"win32"):

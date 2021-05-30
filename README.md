@@ -10,7 +10,7 @@ A simple Python based local network quick file transfer (pylnqft) application fo
   * Activate the virtual environment (If virtual environment was created.) then only run the python script "main.py".
 
 ## Version(s)
-* 0.1.0-alpha.1
+* 0.1.0-alpha.2
 
 ## Side note(s)
 * Basic network function implemented, however the code need further improvement.
